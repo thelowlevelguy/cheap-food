@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Admin — Ajouter un resto</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 480px; margin: 40px auto; padding: 0 16px; color: #222; }
+  h1 { font-size: 20px; }
+  label { display: block; margin-top: 14px; font-size: 14px; font-weight: bold; }
+  input, select { width: 100%; padding: 8px; margin-top: 4px; box-sizing: border-box; font-size: 14px; }
+  button { margin-top: 20px; padding: 10px 16px; font-size: 14px; cursor: pointer; }
+  #msg { margin-top: 16px; font-size: 14px; }
+  .ok { color: #146c2e; }
+  .err { color: #b3261e; }
+</style>
+</head>
+<body>
+  <h1>Admin — Ajouter un restaurant</h1>
+  <form id="resto-form">
+    <label>Clé admin
+      <input type="password" id="cle" required>
+    </label>
+    <label>Nom du resto
+      <input type="text" id="nom" required>
+    </label>
+    <label>Quartier
+      <input type="text" id="quartier" required>
+    </label>
+    <label>Type
+      <select id="type">
+        <option value="resto">resto</option>
+        <option value="cantine">cantine</option>
+        <option value="rue">rue</option>
+      </select>
+    </label>
+    <label>Contact (téléphone, optionnel)
+      <input type="text" id="contact">
+    </label>
+    <button type="submit">Ajouter le resto</button>
+  </form>
+  <div id="msg"></div>
+
+  <script>
+    document.getElementById('resto-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = document.getElementById('msg');
+      msg.textContent = '';
+      msg.className = '';
+
+      const body = {
+        nom: document.getElementById('nom').value,
+        quartier: document.getElementById('quartier').value,
+        type: document.getElementById('type').value,
+        contact: document.getElementById('contact').value,
+      };
+      const cle = document.getElementById('cle').value;
+
+      try {
+        const res = await fetch('/admin/restaurants', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Key': cle,
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          msg.textContent = 'Resto ajouté avec succès (id ' + data.id + ').';
+          msg.className = 'ok';
+          document.getElementById('resto-form').reset();
+        } else {
+          msg.textContent = 'Erreur : ' + (data.erreur || res.statusText);
+          msg.className = 'err';
+        }
+      } catch (err) {
+        msg.textContent = 'Erreur réseau : ' + err.message;
+        msg.className = 'err';
+      }
+    });
+  </script>
+</body>
+</html>

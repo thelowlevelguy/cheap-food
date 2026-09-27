@@ -1,0 +1,102 @@
+:host {
+  display: block;
+  font-family: Arial, sans-serif;
+  color: #222;
+}
+
+.page {
+  max-width: 720px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+
+header h1 {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.sous-titre {
+  color: #555;
+  margin-top: 0;
+}
+
+.recherche {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0 12px;
+}
+
+.recherche input {
+  flex: 1;
+  padding: 10px;
+  font-size: 15px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.recherche button {
+  padding: 10px 18px;
+  font-size: 15px;
+  background: #1f6f43;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.recherche button:hover {
+  background: #185536;
+}
+
+.suggestions {
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.suggestions .label {
+  font-size: 13px;
+  color: #666;
+  margin-right: 4px;
+}
+
+.chip {
+  border: 1px solid #ccc;
+  background: #f4f4f4;
+  border-radius: 16px;
+  padding: 5px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip:hover {
+  background: #e4e4e4;
+}
+
+.erreur {
+  color: #b3261e;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+th, td {
+  border: 1px solid #ddd;
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 14px;
+}
+
+th {
+  background: #f0f0f0;
+}
+
+tr.moins-cher td {
+  background: #eaf7ec;
+  font-weight: bold;
+}

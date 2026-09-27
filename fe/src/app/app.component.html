@@ -1,0 +1,59 @@
+<div class="page">
+  <header>
+    <h1>🍛 Cheap Dish Map — Saint-Louis</h1>
+    <p class="sous-titre">Trouve le resto qui vend un plat au prix le moins cher</p>
+  </header>
+
+  <section class="recherche">
+    <input
+      type="text"
+      placeholder="Ex : Thiéboudienne"
+      [(ngModel)]="platChoisi"
+      (keyup.enter)="onRecherche(platChoisi)"
+      list="liste-plats"
+    />
+    <datalist id="liste-plats">
+      <option *ngFor="let p of plats" [value]="p"></option>
+    </datalist>
+    <button (click)="onRecherche(platChoisi)">Rechercher</button>
+  </section>
+
+  <section class="suggestions" *ngIf="!chargementPlats && plats.length">
+    <span class="label">Plats disponibles :</span>
+    <button
+      *ngFor="let p of plats"
+      class="chip"
+      (click)="chercher(p)"
+    >{{ p }}</button>
+  </section>
+
+  <p *ngIf="chargementPlats">Chargement des plats disponibles…</p>
+  <p *ngIf="erreur" class="erreur">{{ erreur }}</p>
+  <p *ngIf="chargementResultats">Recherche en cours…</p>
+
+  <section class="resultats" *ngIf="resultats.length">
+    <h2>Résultats pour « {{ platChoisi }} »</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Resto</th>
+          <th>Quartier</th>
+          <th>Type</th>
+          <th>Prix (FCFA)</th>
+          <th>Portion</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let r of resultats; let i = index" [class.moins-cher]="i === 0">
+          <td>{{ i + 1 }}</td>
+          <td>{{ r.resto }}</td>
+          <td>{{ r.quartier }}</td>
+          <td>{{ r.type }}</td>
+          <td>{{ r.prix_fcfa }}</td>
+          <td>{{ r.portion }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+</div>

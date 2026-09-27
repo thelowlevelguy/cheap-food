@@ -1,0 +1,18 @@
+[
+  {"resto": "Chez Fatou", "quartier": "Sor", "type": "cantine", "plat": "Thiéboudienne", "prix": 1000, "portion": "moyenne"},
+  {"resto": "Chez Fatou", "quartier": "Sor", "type": "cantine", "plat": "Yassa poulet", "prix": 1200, "portion": "moyenne"},
+  {"resto": "Restaurant Teranga", "quartier": "Île de Saint-Louis", "type": "resto", "plat": "Thiéboudienne", "prix": 1800, "portion": "grande"},
+  {"resto": "Restaurant Teranga", "quartier": "Île de Saint-Louis", "type": "resto", "plat": "Mafé", "prix": 1700, "portion": "moyenne"},
+  {"resto": "Dibiterie Sud", "quartier": "Sud", "type": "rue", "plat": "Dibi mouton", "prix": 1500, "portion": "moyenne"},
+  {"resto": "Cantine Mame Diarra", "quartier": "Sor", "type": "cantine", "plat": "Thiéboudienne", "prix": 900, "portion": "petite"},
+  {"resto": "Cantine Mame Diarra", "quartier": "Sor", "type": "cantine", "plat": "Mafé", "prix": 1000, "portion": "moyenne"},
+  {"resto": "Le Ndar Grill", "quartier": "Île de Saint-Louis", "type": "resto", "plat": "Yassa poulet", "prix": 2000, "portion": "grande"},
+  {"resto": "Chez Awa", "quartier": "Sud", "type": "cantine", "plat": "Thiéboudienne", "prix": 1100, "portion": "moyenne"},
+  {"resto": "Chez Awa", "quartier": "Sud", "type": "cantine", "plat": "Yassa poulet", "prix": 1100, "portion": "moyenne"},
+  {"resto": "Point Chaud Sor", "quartier": "Sor", "type": "rue", "plat": "Thiéboudienne", "prix": 800, "portion": "petite"},
+  {"resto": "Restaurant Waalo", "quartier": "Sud", "type": "resto", "plat": "Mafé", "prix": 1900, "portion": "grande"},
+  {"resto": "Restaurant Waalo", "quartier": "Sud", "type": "resto", "plat": "Thiéboudienne", "prix": 2100, "portion": "grande"},
+  {"resto": "Tang Express", "quartier": "Île de Saint-Louis", "type": "rue", "plat": "Dibi mouton", "prix": 1300, "portion": "moyenne"},
+  {"resto": "Cantine Etudiants Sor", "quartier": "Sor", "type": "cantine", "plat": "Thiéboudienne", "prix": 700, "portion": "petite"},
+  {"resto": "Cantine Etudiants Sor", "quartier": "Sor", "type": "cantine", "plat": "Yassa poulet", "prix": 900, "portion": "petite"}
+]

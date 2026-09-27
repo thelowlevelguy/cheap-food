@@ -1,0 +1,12 @@
+# Secrets — ne jamais committer la vraie clé admin
+.env
+
+# Base de données locale (générée automatiquement au démarrage)
+cheapdish.db
+
+# Binaire compilé
+cheapdish
+cheapdish_test
+
+# Fichiers d'éditeur / OS courants
+.DS_Store
