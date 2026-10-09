@@ -43,7 +43,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           # Angular compile le projet dans un sous-dossier de 'dist/'
-          path: './fe/dist/cheap-food/browser' 
+          path: './fe/dist/fe/browser' 
 
       - name: Deploy to GitHub Pages
         id: deployment
