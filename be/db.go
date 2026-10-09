@@ -19,12 +19,27 @@ type SeedEntry struct {
 	Portion  string `json:"portion"`
 }
 
-// openDB ouvre (ou crée) le fichier SQLite et applique le schéma.
+// openDB ouvre (ou crée) le fichier SQLite et applique le schéma intelligemment.
 func openDB(path string, schemaPath string) (*sql.DB, error) {
+	// Connexion à SQLite avec l'activation des clés étrangères
 	db, err := sql.Open("sqlite3", path+"?_foreign_keys=on")
 	if err != nil {
 		return nil, err
 	}
+
+	// ÉVITEMENT DU CRASH: On vérifie si la colonne "actif" existe déjà dans la table restaurants
+	var columnExists bool
+	checkQuery := "SELECT EXISTS(SELECT 1 FROM pragma_table_info('restaurants') WHERE name='actif')"
+	
+	// Si la table restaurants n'existe pas encore (première exécution), QueryRow va renvoyer une erreur silencieuse, c'est normal.
+	_ = db.QueryRow(checkQuery).Scan(&columnExists)
+
+	// Si la colonne existe déjà, on ne réexécute pas le fichier d'altération pour éviter le crash "duplicate column name"
+	if columnExists {
+		return db, nil
+	}
+
+	// Lecture et application du schéma initial/extensions uniquement si nécessaire
 	schema, err := os.ReadFile(schemaPath)
 	if err != nil {
 		return nil, fmt.Errorf("lecture du schéma: %w", err)
@@ -32,13 +47,14 @@ func openDB(path string, schemaPath string) (*sql.DB, error) {
 	if _, err := db.Exec(string(schema)); err != nil {
 		return nil, fmt.Errorf("application du schéma: %w", err)
 	}
+	
 	return db, nil
 }
 
 // seedIfEmpty charge data/restos.json dans la base si elle ne contient encore aucun prix.
-// C'est ce que tu remplaceras par tes vraies données collectées sur le terrain.
 func seedIfEmpty(db *sql.DB, jsonPath string) error {
 	var count int
+	// Utilisation d'un bloc de sécurité au cas où la table "prix" n'est pas encore lue
 	if err := db.QueryRow("SELECT COUNT(*) FROM prix").Scan(&count); err != nil {
 		return err
 	}

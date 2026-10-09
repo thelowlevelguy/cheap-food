@@ -1,102 +1,417 @@
+/* --- Variables globales & Reset --- */
 :host {
-  display: block;
-  font-family: Arial, sans-serif;
-  color: #222;
+  --primary: #10b981;      /* Vert frais et pro */
+  --primary-hover: #059669;
+  --bg-app: #f9fafb;       /* Fond gris très clair moderne */
+  --surface: #ffffff;
+  --text-main: #1f2937;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+  --gold: #f59e0b;
+  --gold-bg: #fef3c7;
 }
 
-.page {
-  max-width: 720px;
-  margin: 32px auto;
-  padding: 0 16px;
+.app-viewport {
+  background-color: var(--bg-app);
+  min-height: 100vh;
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  padding: 40px 20px;
 }
 
-header h1 {
-  font-size: 24px;
-  margin-bottom: 4px;
+.app-container {
+  max-width: 760px;
+  margin: 0 auto;
 }
 
-.sous-titre {
-  color: #555;
-  margin-top: 0;
+/* --- En-tête --- */
+.app-header {
+  text-align: center;
+  margin-bottom: 35px;
 }
 
-.recherche {
+.brand {
   display: flex;
-  gap: 8px;
-  margin: 20px 0 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 6px;
 }
 
-.recherche input {
+.brand-icon {
+  font-size: 2.2rem;
+}
+
+.app-header h1 {
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0;
+  letter-spacing: -0.025em;
+}
+
+.subtitle {
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+/* --- Barre de Recherche --- */
+.search-section {
+  margin-bottom: 25px;
+}
+
+.search-group {
+  display: flex;
+  gap: 12px;
+}
+
+.input-wrapper {
+  position: relative;
   flex: 1;
-  padding: 10px;
-  font-size: 15px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
 }
 
-.recherche button {
-  padding: 10px 18px;
-  font-size: 15px;
-  background: #1f6f43;
+.search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.1rem;
+  color: var(--text-muted);
+}
+
+.input-wrapper input {
+  width: 100%;
+  padding: 16px 16px 16px 48px;
+  font-size: 1.05rem;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text-main);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+}
+
+.input-wrapper input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
+}
+
+.btn-search {
+  padding: 0 28px;
+  background-color: var(--primary);
   color: white;
+  font-size: 1rem;
+  font-weight: 600;
   border: none;
-  border-radius: 4px;
+  border-radius: 12px;
   cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
-.recherche button:hover {
-  background: #185536;
+.btn-search:hover {
+  background-color: var(--primary-hover);
 }
 
-.suggestions {
-  margin-bottom: 20px;
+/* --- Puces de suggestions (Chips) --- */
+.suggestions-section {
+  margin-bottom: 35px;
+}
+
+.section-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.chips-container {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
+  gap: 8px;
 }
 
-.suggestions .label {
-  font-size: 13px;
-  color: #666;
-  margin-right: 4px;
-}
-
-.chip {
-  border: 1px solid #ccc;
-  background: #f4f4f4;
-  border-radius: 16px;
-  padding: 5px 12px;
-  font-size: 13px;
+.chip-btn {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background-color: var(--surface);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: 20px;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.chip:hover {
-  background: #e4e4e4;
+.chip-btn:hover {
+  border-color: var(--text-muted);
+  background-color: #f3f4f6;
 }
 
-.erreur {
-  color: #b3261e;
+.chip-btn.active {
+  background-color: var(--text-main);
+  color: var(--surface);
+  border-color: var(--text-main);
 }
 
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 8px;
+/* --- Système de cartes pour les Résultats --- */
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
 }
 
-th, td {
-  border: 1px solid #ddd;
-  padding: 8px 10px;
-  text-align: left;
-  font-size: 14px;
+.results-header h2 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0;
 }
 
-th {
-  background: #f0f0f0;
+.query-text {
+  color: var(--primary);
 }
 
-tr.moins-cher td {
-  background: #eaf7ec;
-  font-weight: bold;
+.results-count {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.results-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dish-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  position: relative;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -1px rgba(0,0,0,0.01);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.dish-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0,0,0,0.04);
+}
+
+/* Carte spéciale n°1 : Le moins cher */
+.dish-card.featured-cheapest {
+  border: 2px solid var(--gold);
+  background-color: #fffbeb;
+}
+
+.top-badge {
+  position: absolute;
+  top: -12px;
+  left: 20px;
+  background-color: var(--gold);
+  color: #713f12;
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
+}
+
+.card-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.resto-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.rank-number {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 28px;
+}
+
+.featured-cheapest .rank-number {
+  color: var(--gold);
+}
+
+.resto-info h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+}
+
+.location {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.geo-icon {
+  font-size: 0.95rem;
+}
+
+/* Bloc Prix */
+.price-box {
+  text-align: right;
+}
+
+.price-amount {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.featured-cheapest .price-amount {
+  color: #15803d; /* Vert succès pour accentuer l'économie */
+}
+
+.price-currency {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.portion-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* Pied de carte */
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.featured-cheapest .card-footer {
+  border-top-color: #fef3c7;
+}
+
+/* Badges de types adaptés dynamiquement */
+.type-tag {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+.type-tag[data-type="resto"] {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.type-tag[data-type="cantine"] {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
+.type-tag[data-type="rue"] {
+  background-color: #f3e8ff;
+  color: #6b21a8;
+}
+
+.verified-date {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* --- Messages d'erreur et Spinners --- */
+.alert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 25px;
+}
+
+.error-alert {
+  background-color: #fef2f2;
+  border: 1px solid #fee2e2;
+  color: #991b1b;
+}
+
+.error-alert p {
+  margin: 0;
+  font-weight: 500;
+}
+
+.loading-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 0;
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- Adaptations Écrans Mobiles --- */
+@media (max-width: 540px) {
+  .app-viewport {
+    padding: 20px 12px;
+  }
+  
+  .app-header h1 {
+    font-size: 1.9rem;
+  }
+
+  .search-group {
+    flex-direction: column;
+  }
+
+  .btn-search {
+    padding: 16px;
+  }
+
+  .card-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .price-box {
+    text-align: left;
+    width: 100%;
+    border-top: 1px dashed var(--border);
+    padding-top: 12px;
+  }
 }

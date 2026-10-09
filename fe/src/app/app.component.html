@@ -1,59 +1,107 @@
-<div class="page">
-  <header>
-    <h1>🍛 Cheap Dish Map — Saint-Louis</h1>
-    <p class="sous-titre">Trouve le resto qui vend un plat au prix le moins cher</p>
-  </header>
+<div class="app-viewport">
+  <div class="app-container">
+    
+    <!-- En-tête épuré -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-icon">🍛</span>
+        <h1>Cheap Dish Map</h1>
+      </div>
+      <p class="subtitle">Trouvez les meilleurs prix à Saint-Louis, Sénégal</p>
+    </header>
 
-  <section class="recherche">
-    <input
-      type="text"
-      placeholder="Ex : Thiéboudienne"
-      [(ngModel)]="platChoisi"
-      (keyup.enter)="onRecherche(platChoisi)"
-      list="liste-plats"
-    />
-    <datalist id="liste-plats">
-      <option *ngFor="let p of plats" [value]="p"></option>
-    </datalist>
-    <button (click)="onRecherche(platChoisi)">Rechercher</button>
-  </section>
+    <!-- Zone des messages d'erreur -->
+    <div *ngIf="erreur" class="alert error-alert">
+      <span class="alert-icon">⚠️</span>
+      <p>{{ erreur }}</p>
+    </div>
 
-  <section class="suggestions" *ngIf="!chargementPlats && plats.length">
-    <span class="label">Plats disponibles :</span>
-    <button
-      *ngFor="let p of plats"
-      class="chip"
-      (click)="chercher(p)"
-    >{{ p }}</button>
-  </section>
+    <!-- Barre de recherche moderne -->
+    <section class="search-section">
+      <div class="search-group">
+        <div class="input-wrapper">
+          <span class="search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Quel plat recherchez-vous ? (ex: Dibi, Thiéboudienne...)"
+            [(ngModel)]="platChoisi"
+            (keyup.enter)="onRecherche(platChoisi)"
+            list="liste-plats"
+          />
+        </div>
+        <button class="btn-search" (click)="onRecherche(platChoisi)">Rechercher</button>
+      </div>
+      
+      <datalist id="liste-plats">
+        <option *ngFor="let p of plats" [value]="p"></option>
+      </datalist>
+    </section>
 
-  <p *ngIf="chargementPlats">Chargement des plats disponibles…</p>
-  <p *ngIf="erreur" class="erreur">{{ erreur }}</p>
-  <p *ngIf="chargementResultats">Recherche en cours…</p>
+    <!-- Suggestions de puces (Chips) élégantes -->
+    <section class="suggestions-section" *ngIf="!chargementPlats && plats.length">
+      <p class="section-label">Plats disponibles à Ndar :</p>
+      <div class="chips-container">
+        <button
+          *ngFor="let p of plats"
+          class="chip-btn"
+          [class.active]="p === platChoisi"
+          (click)="chercher(p)"
+        >
+          {{ p }}
+        </button>
+      </div>
+    </section>
 
-  <section class="resultats" *ngIf="resultats.length">
-    <h2>Résultats pour « {{ platChoisi }} »</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Resto</th>
-          <th>Quartier</th>
-          <th>Type</th>
-          <th>Prix (FCFA)</th>
-          <th>Portion</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr *ngFor="let r of resultats; let i = index" [class.moins-cher]="i === 0">
-          <td>{{ i + 1 }}</td>
-          <td>{{ r.resto }}</td>
-          <td>{{ r.quartier }}</td>
-          <td>{{ r.type }}</td>
-          <td>{{ r.prix_fcfa }}</td>
-          <td>{{ r.portion }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
+    <!-- États de chargement fluides -->
+    <div *ngIf="chargementPlats || chargementResultats" class="loading-wrapper">
+      <div class="spinner"></div>
+      <p *ngIf="chargementPlats">Mise à jour des menus locaux...</p>
+      <p *ngIf="chargementResultats">Analyse des prix les moins chers...</p>
+    </div>
+
+    <!-- Section Résultats transformée en cartes (Cards) -->
+    <section class="results-section" *ngIf="resultats.length && !chargementResultats">
+      <div class="results-header">
+        <h2>Résultats pour <span class="query-text">« {{ platChoisi }} »</span></h2>
+        <span class="results-count">{{ resultats.length }} adresse(s) trouvée(s)</span>
+      </div>
+
+      <div class="results-grid">
+        <div 
+          *ngFor="let r of resultats; let i = index" 
+          class="dish-card"
+          [class.featured-cheapest]="i === 0"
+        >
+          <!-- Badge d'honneur pour le moins cher de Saint-Louis -->
+          <div *ngIf="i === 0" class="top-badge">
+            <span class="badge-star">🥇</span> LE MOINS CHER
+          </div>
+
+          <div class="card-main">
+            <div class="resto-info">
+              <span class="rank-number">#{{ i + 1 }}</span>
+              <div>
+                <h3>{{ r.resto }}</h3>
+                <p class="location">
+                  <span class="geo-icon">📍</span> {{ r.quartier }}
+                </p>
+              </div>
+            </div>
+
+            <div class="price-box">
+              <span class="price-amount">{{ r.prix_fcfa }}</span>
+              <span class="price-currency">FCFA</span>
+              <span class="portion-label" *ngIf="r.portion">({{ r.portion }})</span>
+            </div>
+          </div>
+
+          <div class="card-footer">
+            <span class="type-tag" [attr.data-type]="r.type">{{ r.type }}</span>
+            <span class="verified-date" *ngIf="r.date_releve">Relevé le {{ r.date_releve | date:'dd/MM/yyyy' }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
 </div>

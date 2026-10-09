@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"database/sql"
 	"embed"
 	"encoding/json"
@@ -15,17 +16,9 @@ import (
 var adminPageFS embed.FS
 
 // adminKey est la clé secrète attendue dans l'en-tête X-Admin-Key.
-// À définir dans un fichier .env (voir .env.example) ou en variable
-// d'environnement avant de lancer le serveur :
-//
-//	ADMIN_KEY="un-secret-a-toi" go run .
-//
-// Sans ça, une valeur par défaut est utilisée UNIQUEMENT pour le développement local.
 var adminKey string
 
 func loadAdminKey() {
-	// Charge .env s'il existe (ignoré silencieusement s'il est absent —
-	// utile en production où la clé vient d'une vraie variable d'environnement).
 	_ = godotenv.Load()
 
 	adminKey = os.Getenv("ADMIN_KEY")
@@ -35,12 +28,31 @@ func loadAdminKey() {
 	}
 }
 
-// requireAdmin protège un handler : la requête doit porter l'en-tête X-Admin-Key
-// avec la bonne valeur, sinon elle est rejetée (401).
+// MiddlewareCORS configure les en-têtes requis pour autoriser votre PWA Angular (GitHub Pages).
+func MiddlewareCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// En production, vous pourrez remplacer "*" par l'URL exacte de votre GitHub Pages
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key")
+
+		// Traitement immédiat des requêtes de pré-vérification (Preflight) des navigateurs
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requireAdmin protège un handler : vérification sécurisée par comparaison à temps constant.
 func requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		key := r.Header.Get("X-Admin-Key")
-		if key == "" || key != adminKey {
+		
+		// Utilisation de ConstantTimeCompare pour éviter les fuites d'informations temporelles (Timing Attacks)
+		if key == "" || subtle.ConstantTimeCompare([]byte(key), []byte(adminKey)) != 1 {
 			writeError(w, "accès admin refusé (clé manquante ou invalide)", http.StatusUnauthorized)
 			return
 		}
@@ -49,7 +61,6 @@ func requireAdmin(next http.HandlerFunc) http.HandlerFunc {
 }
 
 // GET /admin -> sert la page HTML avec le formulaire d'ajout de resto.
-// La page elle-même est publique, mais chaque soumission doit fournir la bonne clé.
 func handleAdminPage(w http.ResponseWriter, r *http.Request) {
 	data, err := adminPageFS.ReadFile("admin.html")
 	if err != nil {
@@ -68,17 +79,24 @@ type NewRestaurantInput struct {
 	Contact  string `json:"contact"`
 }
 
-// insertRestaurantOnly crée un resto sans plat/prix associé (contrairement à insertEntry).
-func insertRestaurantOnly(db *sql.DB, in NewRestaurantInput) (int64, error) {
-	_, err := db.Exec(
-		`INSERT INTO restaurants (nom, quartier, type, contact) VALUES (?, ?, ?, ?)
-		 ON CONFLICT(nom, quartier) DO UPDATE SET type = excluded.type, contact = excluded.contact`,
-		in.Nom, in.Quartier, in.Type, in.Contact,
-	)
+// insertRestaurantOnly crée un resto sans plat/prix associé.
+// Prise en charge de la structure UUID de votre base de données étendue.
+func insertRestaurantOnly(db *sql.DB, in NewRestaurantInput) (string, error) {
+	// Génération d'un UUID en minuscule natif à SQLite lors de l'insertion
+	query := `
+		INSERT INTO restaurants (id, nom, quartier, type, contact, actif) 
+		VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, 1)
+		ON CONFLICT(nom, quartier) DO UPDATE SET 
+			type = excluded.type, 
+			contact = excluded.contact,
+			actif = 1`
+			
+	_, err := db.Exec(query, in.Nom, in.Quartier, in.Type, in.Contact)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
-	var id int64
+
+	var id string
 	err = db.QueryRow(`SELECT id FROM restaurants WHERE nom = ? AND quartier = ?`, in.Nom, in.Quartier).Scan(&id)
 	return id, err
 }
