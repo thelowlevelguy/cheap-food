@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 )
 
@@ -201,13 +202,13 @@ func main() {
 
 	// Configuration du routeur natif (Go 1.22+)
 	mux := http.NewServeMux()
-	
+
 	// Routes Publiques
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("GET /plats", handlePlats)
 	mux.HandleFunc("GET /plats/{nom}/moins-cher", handleMoinsCher)
 	mux.HandleFunc("GET /restos", handleRestos)
-	
+
 	// Écran d'administration Web (Page publique, soumissions sécurisées)
 	mux.HandleFunc("GET /admin", handleAdminPage)
 
@@ -215,9 +216,15 @@ func main() {
 	mux.HandleFunc("POST /prix", requireAdmin(handleAjouterPrix))
 	mux.HandleFunc("POST /admin/restaurants", requireAdmin(handleAdminAjouterResto))
 
-	addr := ":8080"
-	log.Printf("Serveur Cheap Dish Map démarré sur http://localhost%s", addr)
-	
-	// Injection globale du Middleware CORS pour éviter les blocages sur l'application Angular
+	port := os.Getenv("PORT")
+
+	if port == "" {
+		port = "8080"
+	}
+
+	addr := ":" + port
+
+	log.Printf("Serveur Cheap Dish Map démarré sur le port %s", port)
+
 	log.Fatal(http.ListenAndServe(addr, MiddlewareCORS(mux)))
 }

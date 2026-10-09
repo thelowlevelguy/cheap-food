@@ -1,60 +1,228 @@
--- NdarExpressFood : extension du schema.sql existant (restaurants, plats, prix)
--- A adapter aux vrais noms de colonnes de votre schema.sql.
--- Tous les montants sont en FCFA, en entiers.
--- Tous les identifiants (id) sont des UUID stockes en TEXT, generes par le serveur Go (jamais par le client).
--- Au demarrage de chaque connexion : PRAGMA foreign_keys = ON;
--- Conseille aussi : PRAGMA journal_mode = WAL; (plusieurs commandes en meme temps)
+-- ============================================================
+-- CHEAP DISH MAP / NDAR EXPRESS FOOD
+-- Schema SQLite principal
+-- ============================================================
+--
+-- Restaurants :
+--   Chaque établissement possède son propre identifiant.
+--   Plusieurs restaurants peuvent partager le même nom
+--   et/ou le même quartier.
+--
+-- Plats :
+--   Un plat est partage entre plusieurs restaurants.
+--
+-- Prix :
+--   Relie un restaurant a un plat et enregistre son prix.
+--
+-- Commandes :
+--   Permet de gerer les commandes et leurs lignes.
+--
+-- Identifiants :
+--   INTEGER AUTOINCREMENT pour restaurants, plats et prix.
+--   TEXT pour les identifiants des commandes et des livreurs.
+--
+-- Montants :
+--   FCFA, stockes en entiers.
+-- ============================================================
 
--- 1. Enrichir l'existant -------------------------------------------------
--- "contact" existe deja dans restaurants : reutilisez-le pour WhatsApp/SMS.
-ALTER TABLE restaurants ADD COLUMN actif INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE restaurants ADD COLUMN code_acces_hash TEXT;  -- acces du resto a son tableau de bord (stocker un hash, jamais le code en clair)
-ALTER TABLE prix ADD COLUMN disponible INTEGER NOT NULL DEFAULT 1;  -- plat epuise = 0
-ALTER TABLE prix ADD COLUMN photo TEXT;
+PRAGMA foreign_keys = ON;
 
--- 2. Livreurs ------------------------------------------------------------
--- Pas de compte client : nom et telephone sont saisis a chaque commande.
-CREATE TABLE IF NOT EXISTS livreurs (
-  id        TEXT PRIMARY KEY,
-  nom       TEXT NOT NULL,
-  telephone TEXT NOT NULL UNIQUE,
-  actif     INTEGER NOT NULL DEFAULT 1
+-- ============================================================
+-- 1. RESTAURANTS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS restaurants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nom TEXT NOT NULL,
+    quartier TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT '',
+    contact TEXT NOT NULL DEFAULT '',
+    actif INTEGER NOT NULL DEFAULT 0
+        CHECK (actif IN (0, 1)),
+    code_acces_hash TEXT
 );
 
--- 3. Commandes -----------------------------------------------------------
+CREATE INDEX IF NOT EXISTS idx_restaurants_nom
+    ON restaurants (nom);
+
+CREATE INDEX IF NOT EXISTS idx_restaurants_quartier
+    ON restaurants (quartier);
+
+-- ============================================================
+-- 2. PLATS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS plats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nom TEXT NOT NULL UNIQUE
+);
+
+-- ============================================================
+-- 3. PRIX
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS prix (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    restaurant_id INTEGER NOT NULL,
+    plat_id INTEGER NOT NULL,
+
+    prix_fcfa INTEGER NOT NULL
+        CHECK (prix_fcfa > 0),
+
+    portion TEXT NOT NULL DEFAULT '',
+    date_releve TEXT NOT NULL DEFAULT (date('now')),
+
+    disponible INTEGER NOT NULL DEFAULT 1
+        CHECK (disponible IN (0, 1)),
+
+    photo TEXT,
+
+    FOREIGN KEY (restaurant_id)
+        REFERENCES restaurants(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (plat_id)
+        REFERENCES plats(id)
+        ON DELETE RESTRICT,
+
+    -- Un restaurant peut proposer plusieurs plats.
+    -- Un plat peut etre vendu dans plusieurs restaurants.
+    -- Une portion donnee ne doit pas avoir plusieurs
+    -- enregistrements de prix dans le meme restaurant.
+    UNIQUE (restaurant_id, plat_id, portion)
+);
+
+CREATE INDEX IF NOT EXISTS idx_prix_restaurant
+    ON prix (restaurant_id);
+
+CREATE INDEX IF NOT EXISTS idx_prix_plat
+    ON prix (plat_id);
+
+CREATE INDEX IF NOT EXISTS idx_prix_montant
+    ON prix (prix_fcfa);
+
+CREATE INDEX IF NOT EXISTS idx_prix_disponible
+    ON prix (disponible);
+
+-- ============================================================
+-- 4. LIVREURS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS livreurs (
+    id TEXT PRIMARY KEY,
+    nom TEXT NOT NULL,
+    telephone TEXT NOT NULL UNIQUE,
+    actif INTEGER NOT NULL DEFAULT 1
+        CHECK (actif IN (0, 1))
+);
+
+-- ============================================================
+-- 5. COMMANDES
+-- ============================================================
+
 CREATE TABLE IF NOT EXISTS commandes (
-  id                 TEXT PRIMARY KEY,
-  restaurant_id      TEXT NOT NULL REFERENCES restaurants(id),  -- UUID (restaurants.id doit etre TEXT PRIMARY KEY)
-  client_nom         TEXT NOT NULL,
-  client_telephone   TEXT NOT NULL,
-  token_suivi        TEXT NOT NULL UNIQUE,         -- long code aleatoire, mis dans le lien de suivi de la commande
-  livreur_id         TEXT    REFERENCES livreurs(id),
-  mode               TEXT NOT NULL CHECK (mode IN ('retrait', 'livraison')),
-  adresse_livraison  TEXT,
-  statut             TEXT NOT NULL DEFAULT 'attente_paiement'
-                     CHECK (statut IN ('attente_paiement', 'payee', 'acceptee',
-                                       'prete', 'en_livraison', 'terminee', 'annulee')),
-  sous_total         INTEGER NOT NULL,             -- somme des plats, calculee par le serveur
-  frais_resto        INTEGER NOT NULL,             -- 50 / 100 / 200 selon le sous_total
-  frais_livraison    INTEGER NOT NULL DEFAULT 0,   -- paye par le client si livraison
-  part_livreur       INTEGER NOT NULL DEFAULT 0,   -- part du livreur dans frais_livraison
-  code_retrait       TEXT NOT NULL,                -- code montre au resto / au livreur
-  reference_paiement TEXT UNIQUE,                  -- identifiant de la transaction Wave
-  cree_le            TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  paye_le            TEXT
+    id TEXT PRIMARY KEY,
+
+    restaurant_id INTEGER NOT NULL,
+
+    client_nom TEXT NOT NULL,
+    client_telephone TEXT NOT NULL,
+
+    token_suivi TEXT NOT NULL UNIQUE,
+
+    livreur_id TEXT,
+
+    mode TEXT NOT NULL
+        CHECK (mode IN ('retrait', 'livraison')),
+
+    adresse_livraison TEXT,
+
+    statut TEXT NOT NULL DEFAULT 'attente_paiement'
+        CHECK (
+            statut IN (
+                'attente_paiement',
+                'payee',
+                'acceptee',
+                'prete',
+                'en_livraison',
+                'terminee',
+                'annulee'
+            )
+        ),
+
+    sous_total INTEGER NOT NULL
+        CHECK (sous_total >= 0),
+
+    frais_resto INTEGER NOT NULL
+        CHECK (frais_resto >= 0),
+
+    frais_livraison INTEGER NOT NULL DEFAULT 0
+        CHECK (frais_livraison >= 0),
+
+    part_livreur INTEGER NOT NULL DEFAULT 0
+        CHECK (part_livreur >= 0),
+
+    code_retrait TEXT NOT NULL,
+
+    reference_paiement TEXT UNIQUE,
+
+    cree_le TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    paye_le TEXT,
+
+    FOREIGN KEY (restaurant_id)
+        REFERENCES restaurants(id)
+        ON DELETE RESTRICT,
+
+    FOREIGN KEY (livreur_id)
+        REFERENCES livreurs(id)
+        ON DELETE SET NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_commandes_resto_statut
-  ON commandes (restaurant_id, statut);
+    ON commandes (restaurant_id, statut);
 
--- 4. Lignes de commande --------------------------------------------------
--- Nom et prix sont copies au moment de la commande : si le resto change
--- ses prix plus tard, l'historique reste correct.
+CREATE INDEX IF NOT EXISTS idx_commandes_token_suivi
+    ON commandes (token_suivi);
+
+CREATE INDEX IF NOT EXISTS idx_commandes_livreur
+    ON commandes (livreur_id);
+
+-- ============================================================
+-- 6. LIGNES DE COMMANDE
+-- ============================================================
+
 CREATE TABLE IF NOT EXISTS lignes_commande (
-  id            TEXT PRIMARY KEY,
-  commande_id   TEXT    NOT NULL REFERENCES commandes(id),
-  prix_id       TEXT    NOT NULL REFERENCES prix(id),
-  nom_plat      TEXT NOT NULL,
-  prix_unitaire INTEGER NOT NULL,
-  quantite      INTEGER NOT NULL CHECK (quantite > 0)
+    id TEXT PRIMARY KEY,
+
+    commande_id TEXT NOT NULL,
+    prix_id INTEGER NOT NULL,
+
+    -- Informations conservees telles qu'elles etaient
+    -- au moment de la commande.
+    nom_plat TEXT NOT NULL,
+
+    prix_unitaire INTEGER NOT NULL
+        CHECK (prix_unitaire >= 0),
+
+    quantite INTEGER NOT NULL
+        CHECK (quantite > 0),
+
+    FOREIGN KEY (commande_id)
+        REFERENCES commandes(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (prix_id)
+        REFERENCES prix(id)
+        ON DELETE RESTRICT
 );
+
+CREATE INDEX IF NOT EXISTS idx_lignes_commande_commande
+    ON lignes_commande (commande_id);
+
+CREATE INDEX IF NOT EXISTS idx_lignes_commande_prix
+    ON lignes_commande (prix_id);
+
+-- ============================================================
+-- FIN DU SCHEMA
+-- ============================================================

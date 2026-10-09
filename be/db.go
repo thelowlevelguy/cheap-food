@@ -79,7 +79,8 @@ func seedIfEmpty(db *sql.DB, jsonPath string) error {
 	return nil
 }
 
-// insertEntry insère (ou réutilise) un resto et un plat, puis enregistre le prix.
+// insertEntry insere ou reutilise un restaurant et un plat,
+// puis enregistre le prix correspondant.
 func insertEntry(db *sql.DB, e SeedEntry) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -87,32 +88,91 @@ func insertEntry(db *sql.DB, e SeedEntry) error {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec(
-		`INSERT INTO restaurants (nom, quartier, type) VALUES (?, ?, ?)
-		 ON CONFLICT(nom, quartier) DO UPDATE SET type = excluded.type`,
-		e.Resto, e.Quartier, e.Type,
-	); err != nil {
-		return err
-	}
+	// 1. Rechercher le restaurant existant.
+	// Le nom, le quartier et le type servent ici a reconnaitre
+	// un restaurant lors de l'importation des donnees.
 	var restaurantID int64
-	if err := tx.QueryRow(`SELECT id FROM restaurants WHERE nom = ? AND quartier = ?`, e.Resto, e.Quartier).Scan(&restaurantID); err != nil {
-		return err
+
+	err = tx.QueryRow(`
+		SELECT id
+		FROM restaurants
+		WHERE nom = ? AND quartier = ? AND type = ?
+		ORDER BY id
+		LIMIT 1
+	`, e.Resto, e.Quartier, e.Type).Scan(&restaurantID)
+
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return fmt.Errorf("recherche du restaurant : %w", err)
+		}
+
+		// 2. Si le restaurant n'existe pas, le creer.
+		result, err := tx.Exec(`
+			INSERT INTO restaurants (nom, quartier, type)
+			VALUES (?, ?, ?)
+		`, e.Resto, e.Quartier, e.Type)
+		if err != nil {
+			return fmt.Errorf("creation du restaurant : %w", err)
+		}
+
+		restaurantID, err = result.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("recuperation de l'identifiant du restaurant : %w", err)
+		}
 	}
 
-	if _, err := tx.Exec(`INSERT INTO plats (nom) VALUES (?) ON CONFLICT(nom) DO NOTHING`, e.Plat); err != nil {
-		return err
-	}
+	// 3. Rechercher le plat existant.
 	var platID int64
-	if err := tx.QueryRow(`SELECT id FROM plats WHERE nom = ?`, e.Plat).Scan(&platID); err != nil {
-		return err
+
+	err = tx.QueryRow(`
+		SELECT id
+		FROM plats
+		WHERE nom = ?
+	`, e.Plat).Scan(&platID)
+
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return fmt.Errorf("recherche du plat : %w", err)
+		}
+
+		// 4. Creer le plat uniquement s'il n'existe pas.
+		result, err := tx.Exec(`
+			INSERT INTO plats (nom)
+			VALUES (?)
+		`, e.Plat)
+		if err != nil {
+			return fmt.Errorf("creation du plat : %w", err)
+		}
+
+		platID, err = result.LastInsertId()
+		if err != nil {
+			return fmt.Errorf("recuperation de l'identifiant du plat : %w", err)
+		}
 	}
 
-	if _, err := tx.Exec(
-		`INSERT INTO prix (restaurant_id, plat_id, prix_fcfa, portion) VALUES (?, ?, ?, ?)
-		 ON CONFLICT(restaurant_id, plat_id, portion) DO UPDATE SET prix_fcfa = excluded.prix_fcfa, date_releve = date('now')`,
-		restaurantID, platID, e.Prix, e.Portion,
-	); err != nil {
-		return err
+	// 5. Inserer ou mettre a jour le prix.
+	// Le prix peut etre identique a celui d'autres plats
+	// ou d'autres restaurants : aucune unicite sur le montant.
+	_, err = tx.Exec(`
+		INSERT INTO prix (
+			restaurant_id,
+			plat_id,
+			prix_fcfa,
+			portion
+		)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (restaurant_id, plat_id, portion)
+		DO UPDATE SET
+			prix_fcfa = excluded.prix_fcfa,
+			date_releve = date('now')
+	`,
+		restaurantID,
+		platID,
+		e.Prix,
+		e.Portion,
+	)
+	if err != nil {
+		return fmt.Errorf("enregistrement du prix : %w", err)
 	}
 
 	return tx.Commit()

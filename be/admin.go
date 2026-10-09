@@ -19,26 +19,40 @@ var adminPageFS embed.FS
 var adminKey string
 
 func loadAdminKey() {
-	_ = godotenv.Load()
+    _ = godotenv.Load()
 
-	adminKey = os.Getenv("ADMIN_KEY")
-	if adminKey == "" {
-		adminKey = "changeme"
-		log.Println("ATTENTION: ADMIN_KEY non définie, utilisation de la valeur par défaut 'changeme'. Ne jamais faire ça en production.")
-	}
+    adminKey = os.Getenv("ADMIN_KEY")
+    if adminKey == "" {
+        log.Fatal("ERREUR: la variable ADMIN_KEY doit être définie avant le démarrage du serveur.")
+    }
 }
 
 // MiddlewareCORS configure les en-têtes requis pour autoriser votre PWA Angular (GitHub Pages).
 func MiddlewareCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// En production, vous pourrez remplacer "*" par l'URL exacte de votre GitHub Pages
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key")
+		origin := r.Header.Get("Origin")
 
-		// Traitement immédiat des requêtes de pré-vérification (Preflight) des navigateurs
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
+		allowedOrigins := map[string]bool{
+			"http://localhost:4200":             true,
+			"http://127.0.0.1:4200":             true,
+			"https://thelowlevelguy.github.io": true,
+		}
+
+		if allowedOrigins[origin] {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set(
+				"Access-Control-Allow-Methods",
+				"GET, POST, PUT, PATCH, DELETE, OPTIONS",
+			)
+			w.Header().Set(
+				"Access-Control-Allow-Headers",
+				"Content-Type, X-Admin-Key, Authorization",
+			)
+		}
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 

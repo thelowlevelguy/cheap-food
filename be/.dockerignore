@@ -1,0 +1,29 @@
+# Git
+.git
+.gitignore
+
+# Secrets et variables d'environnement
+.env
+.env.*
+!.env.example
+
+# Base de données SQLite locale
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Binaires compilés localement
+cheapdish-backend
+*.exe
+
+# Logs
+*.log
+
+# Fichiers temporaires
+tmp/
+temp/
+
+# Documentation locale
+README.local.md
