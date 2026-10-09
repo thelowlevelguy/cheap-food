@@ -1,0 +1,34 @@
+name: Check Go Backend Compilation
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'be/**' # Se déclenche si vous modifiez le backend
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install C Compiler & SQLite Dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libsqlite3-dev
+
+      - name: Setup Go Environment
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+          cache-dependency-path: be/go.sum # Recherche les dépendances dans le dossier be
+
+      - name: Download Go Modules
+        run: cd be && go mod download
+
+      - name: Build Server
+        run: cd be && go build -v -o cheapdish-server .
