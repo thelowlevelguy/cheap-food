@@ -202,13 +202,13 @@ func main() {
 
 	// Configuration du routeur natif (Go 1.22+)
 	mux := http.NewServeMux()
-
+	
 	// Routes Publiques
 	mux.HandleFunc("GET /health", handleHealth)
 	mux.HandleFunc("GET /plats", handlePlats)
 	mux.HandleFunc("GET /plats/{nom}/moins-cher", handleMoinsCher)
 	mux.HandleFunc("GET /restos", handleRestos)
-
+	
 	// Écran d'administration Web (Page publique, soumissions sécurisées)
 	mux.HandleFunc("GET /admin", handleAdminPage)
 
