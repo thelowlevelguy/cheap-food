@@ -50,13 +50,13 @@ jobs:
         # so serve the app shell there.
         run: |
           ls -R dist/
-          cp dist/cheapdish-front/browser/index.html dist/cheapdish-front/browser/404.html
-          
+          cp dist/cheapdish-front/browser/index.html dist/cheapdish-front/404.html
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Relative to the repository root (the defaults above only affect "run" steps).
-          path: fe/dist/cheapdish-front/browser
+          # CORRIGÉ : Cible directe du dossier de build réel d'Angular 17+
+          path: fe/dist/cheapdish-front
 
       - name: Deploy to GitHub Pages
         id: deployment
