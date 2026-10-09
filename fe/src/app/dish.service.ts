@@ -19,7 +19,7 @@ export interface Resto {
 }
 
 // URL de base de l'API Go. Change-la si ton backend tourne ailleurs.
-const API_BASE = 'https://expressfood.onrender.com/';
+const API_BASE = 'https://expressfood.onrender.com';
 
 @Injectable({ providedIn: 'root' })
 export class DishService {
