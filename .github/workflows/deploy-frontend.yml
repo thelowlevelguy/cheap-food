@@ -2,10 +2,11 @@ name: Deploy Angular PWA to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
     paths:
       - "fe/**"
-      - ".github/workflows/deploy-fe.yml"
+      - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
 
 permissions:
@@ -14,49 +15,57 @@ permissions:
   id-token: write
 
 concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
-defaults:
-  run:
-    working-directory: fe
+  group: pages
+  cancel-in-progress: true
 
 jobs:
   deploy:
+    runs-on: ubuntu-latest
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           cache: npm
           cache-dependency-path: fe/package-lock.json
 
       - name: Install dependencies
+        working-directory: fe
         run: npm ci
 
-      - name: Build Angular project
-        # Use the exact repository name here, or "/" once you have a custom domain.
+      - name: Build Angular application
+        working-directory: fe
         run: npm run build -- --configuration=production --base-href=/cheap-food/
 
-      - name: Make deep links work on GitHub Pages
-        # Pages has no single-page-app fallback: unknown paths return 404.html,
-        # so serve the app shell there.
+      - name: Inspect build output
+        working-directory: fe
         run: |
-          ls -R dist/
-          cp dist/cheapdish-front/browser/index.html dist/cheapdish-front/404.html
+          echo "Checking Angular build output..."
+          find dist -maxdepth 4 -type f -name index.html
+          test -f dist/cheapdish-front/browser/index.html
+
+      - name: Prepare GitHub Pages artifact
+        working-directory: fe
+        run: |
+          cp dist/cheapdish-front/browser/index.html \
+             dist/cheapdish-front/browser/404.html
+          touch dist/cheapdish-front/browser/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
-          # CORRIGÉ : Cible directe du dossier de build réel d'Angular 17+
-          path: fe/dist/cheapdish-front
+          path: fe/dist/cheapdish-front/browser
 
       - name: Deploy to GitHub Pages
         id: deployment
