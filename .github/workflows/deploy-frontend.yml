@@ -48,8 +48,10 @@ jobs:
       - name: Make deep links work on GitHub Pages
         # Pages has no single-page-app fallback: unknown paths return 404.html,
         # so serve the app shell there.
-        run: cp dist/cheapdish-front/browser/index.html dist/cheapdish-front/browser/404.html
-
+        run: |
+          ls -R dist/
+          cp dist/cheapdish-front/browser/index.html dist/cheapdish-front/browser/404.html
+          
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
