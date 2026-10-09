@@ -4,7 +4,9 @@ on:
   push:
     branches: ["main"]
     paths:
-      - 'fe/**'
+      - "fe/**"
+      - ".github/workflows/deploy-fe.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -13,7 +15,11 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: true
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: fe
 
 jobs:
   deploy:
@@ -22,28 +28,33 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: fe/package-lock.json
 
-      - name: Install Dependencies
-        run: cd fe && npm ci
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Build Angular Project
-        run: cd fe && npm run build -- --configuration=production --base-href=/cheap-food/
-        # Note : Remplacez /cheap-food/ par le nom exact de votre dépôt GitHub s'il change
+      - name: Build Angular project
+        # Use the exact repository name here, or "/" once you have a custom domain.
+        run: npm run build -- --configuration=production --base-href=/cheap-food/
+
+      - name: Make deep links work on GitHub Pages
+        # Pages has no single-page-app fallback: unknown paths return 404.html,
+        # so serve the app shell there.
+        run: cp dist/cheapdish-front/browser/index.html dist/cheapdish-front/browser/404.html
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Angular compile le projet dans un sous-dossier de 'dist/'
-          path: './fe/dist/fe/browser' 
+          # Relative to the repository root (the defaults above only affect "run" steps).
+          path: fe/dist/cheapdish-front/browser
 
       - name: Deploy to GitHub Pages
         id: deployment
