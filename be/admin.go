@@ -93,25 +93,24 @@ type NewRestaurantInput struct {
 	Contact  string `json:"contact"`
 }
 
-// insertRestaurantOnly crée un resto sans plat/prix associé.
-// Prise en charge de la structure UUID de votre base de données étendue.
+// insertRestaurantOnly cree un resto sans plat ni prix, ou met a jour
+// celui qui porte deja le meme nom dans le meme quartier.
+// L'identifiant (UUID) est genere par la base.
 func insertRestaurantOnly(db *sql.DB, in NewRestaurantInput) (string, error) {
-	// Génération d'un UUID en minuscule natif à SQLite lors de l'insertion
-	query := `
-		INSERT INTO restaurants (id, nom, quartier, type, contact, actif) 
-		VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?, 1)
-		ON CONFLICT(nom, quartier) DO UPDATE SET 
-			type = excluded.type, 
-			contact = excluded.contact,
-			actif = 1`
-			
-	_, err := db.Exec(query, in.Nom, in.Quartier, in.Type, in.Contact)
+	slug, err := uniqueSlug(db, in.Nom, in.Quartier)
 	if err != nil {
 		return "", err
 	}
-
 	var id string
-	err = db.QueryRow(`SELECT id FROM restaurants WHERE nom = ? AND quartier = ?`, in.Nom, in.Quartier).Scan(&id)
+	err = db.QueryRow(`
+		INSERT INTO restaurants (nom, quartier, type, contact, actif, slug)
+		VALUES (?, ?, ?, ?, 1, ?)
+		ON CONFLICT (nom, quartier) DO UPDATE SET
+			type = excluded.type,
+			contact = excluded.contact,
+			actif = 1
+		RETURNING id
+	`, in.Nom, in.Quartier, in.Type, in.Contact, slug).Scan(&id)
 	return id, err
 }
 
@@ -129,7 +128,9 @@ func handleAdminAjouterResto(w http.ResponseWriter, r *http.Request) {
 
 	id, err := insertRestaurantOnly(db, in)
 	if err != nil {
-		writeError(w, err.Error(), http.StatusInternalServerError)
+		// Le detail technique reste dans les journaux, pas dans la reponse.
+		log.Printf("ajout du restaurant %q : %v", in.Nom, err)
+		writeError(w, "impossible d'enregistrer le restaurant", http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusCreated)

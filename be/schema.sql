@@ -1,28 +1,16 @@
 -- ============================================================
--- CHEAP DISH MAP / NDAR EXPRESS FOOD
--- Schema SQLite principal
+-- EXPRESSFOOD (ex CHEAP DISH MAP) - Schema SQLite principal
 -- ============================================================
+-- Version du schema : 3 (voir schemaVersion dans db.go)
 --
--- Restaurants :
---   Chaque établissement possède son propre identifiant.
---   Plusieurs restaurants peuvent partager le même nom
---   et/ou le même quartier.
---
--- Plats :
---   Un plat est partage entre plusieurs restaurants.
---
--- Prix :
---   Relie un restaurant a un plat et enregistre son prix.
---
--- Commandes :
---   Permet de gerer les commandes et leurs lignes.
---
--- Identifiants :
---   INTEGER AUTOINCREMENT pour restaurants, plats et prix.
---   TEXT pour les identifiants des commandes et des livreurs.
---
--- Montants :
---   FCFA, stockes en entiers.
+-- Identifiants : tous les id sont des UUID v4 stockes en TEXT.
+--   Les tables restaurants, plats et prix les generent elles-memes
+--   (DEFAULT). Les commandes et les livreurs sont generes par le
+--   serveur Go, jamais par le client.
+-- Montants : FCFA, entiers.
+-- Ce fichier peut etre rejoue a chaque demarrage (IF NOT EXISTS).
+-- Une base creee avec une ancienne version doit etre recreee
+-- (le serveur refuse de la reutiliser, voir openDB).
 -- ============================================================
 
 PRAGMA foreign_keys = ON;
@@ -32,14 +20,28 @@ PRAGMA foreign_keys = ON;
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS restaurants (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT NOT NULL PRIMARY KEY DEFAULT (lower(
+        hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' ||
+        substr(hex(randomblob(2)), 2) || '-' ||
+        substr('89ab', 1 + (abs(random()) % 4), 1) ||
+        substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),
     nom TEXT NOT NULL,
+    -- Adresse courte du restaurant (QR code) : /r/cantine-sor. Choisie par le
+    -- serveur a la creation, puis jamais modifiee.
+    slug TEXT NOT NULL UNIQUE,
     quartier TEXT NOT NULL DEFAULT '',
     type TEXT NOT NULL DEFAULT '',
     contact TEXT NOT NULL DEFAULT '',
     actif INTEGER NOT NULL DEFAULT 0
         CHECK (actif IN (0, 1)),
-    code_acces_hash TEXT
+    code_acces_hash TEXT,
+    latitude REAL,
+    longitude REAL,
+    temps_preparation_min INTEGER NOT NULL DEFAULT 15
+        CHECK (temps_preparation_min > 0),
+
+    -- Un restaurant est reconnu par son nom et son quartier.
+    UNIQUE (nom, quartier)
 );
 
 CREATE INDEX IF NOT EXISTS idx_restaurants_nom
@@ -53,19 +55,27 @@ CREATE INDEX IF NOT EXISTS idx_restaurants_quartier
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS plats (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT NOT NULL PRIMARY KEY DEFAULT (lower(
+        hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' ||
+        substr(hex(randomblob(2)), 2) || '-' ||
+        substr('89ab', 1 + (abs(random()) % 4), 1) ||
+        substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),
     nom TEXT NOT NULL UNIQUE
 );
 
 -- ============================================================
--- 3. PRIX
+-- 3. PRIX (un plat chez un restaurant)
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS prix (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT NOT NULL PRIMARY KEY DEFAULT (lower(
+        hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' ||
+        substr(hex(randomblob(2)), 2) || '-' ||
+        substr('89ab', 1 + (abs(random()) % 4), 1) ||
+        substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))),
 
-    restaurant_id INTEGER NOT NULL,
-    plat_id INTEGER NOT NULL,
+    restaurant_id TEXT NOT NULL,
+    plat_id TEXT NOT NULL,
 
     prix_fcfa INTEGER NOT NULL
         CHECK (prix_fcfa > 0),
@@ -86,10 +96,7 @@ CREATE TABLE IF NOT EXISTS prix (
         REFERENCES plats(id)
         ON DELETE RESTRICT,
 
-    -- Un restaurant peut proposer plusieurs plats.
-    -- Un plat peut etre vendu dans plusieurs restaurants.
-    -- Une portion donnee ne doit pas avoir plusieurs
-    -- enregistrements de prix dans le meme restaurant.
+    -- Une portion donnee n'a qu'un seul prix dans un restaurant.
     UNIQUE (restaurant_id, plat_id, portion)
 );
 
@@ -124,7 +131,7 @@ CREATE TABLE IF NOT EXISTS livreurs (
 CREATE TABLE IF NOT EXISTS commandes (
     id TEXT PRIMARY KEY,
 
-    restaurant_id INTEGER NOT NULL,
+    restaurant_id TEXT NOT NULL,
 
     client_nom TEXT NOT NULL,
     client_telephone TEXT NOT NULL,
@@ -170,6 +177,9 @@ CREATE TABLE IF NOT EXISTS commandes (
     cree_le TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     paye_le TEXT,
 
+    -- Une livraison a toujours une adresse.
+    CHECK (mode = 'retrait' OR adresse_livraison IS NOT NULL),
+
     FOREIGN KEY (restaurant_id)
         REFERENCES restaurants(id)
         ON DELETE RESTRICT,
@@ -182,9 +192,6 @@ CREATE TABLE IF NOT EXISTS commandes (
 CREATE INDEX IF NOT EXISTS idx_commandes_resto_statut
     ON commandes (restaurant_id, statut);
 
-CREATE INDEX IF NOT EXISTS idx_commandes_token_suivi
-    ON commandes (token_suivi);
-
 CREATE INDEX IF NOT EXISTS idx_commandes_livreur
     ON commandes (livreur_id);
 
@@ -196,7 +203,7 @@ CREATE TABLE IF NOT EXISTS lignes_commande (
     id TEXT PRIMARY KEY,
 
     commande_id TEXT NOT NULL,
-    prix_id INTEGER NOT NULL,
+    prix_id TEXT NOT NULL,
 
     -- Informations conservees telles qu'elles etaient
     -- au moment de la commande.

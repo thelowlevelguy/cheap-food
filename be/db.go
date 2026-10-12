@@ -19,35 +19,43 @@ type SeedEntry struct {
 	Portion  string `json:"portion"`
 }
 
-// openDB ouvre (ou crée) le fichier SQLite et applique le schéma intelligemment.
+// schemaVersion doit correspondre a la version indiquee dans schema.sql.
+const schemaVersion = 3
+
+// openDB ouvre (ou cree) le fichier SQLite et applique le schema.
+// Le schema est rejouable a chaque demarrage. Une base creee avec
+// une ancienne version est refusee avec un message clair, au lieu
+// de planter plus tard sur une requete.
 func openDB(path string, schemaPath string) (*sql.DB, error) {
-	// Connexion à SQLite avec l'activation des clés étrangères
-	db, err := sql.Open("sqlite3", path+"?_foreign_keys=on")
+	db, err := sql.Open("sqlite3", path+"?_foreign_keys=on&_journal_mode=WAL&_busy_timeout=5000")
 	if err != nil {
 		return nil, err
 	}
 
-	// ÉVITEMENT DU CRASH: On vérifie si la colonne "actif" existe déjà dans la table restaurants
-	var columnExists bool
-	checkQuery := "SELECT EXISTS(SELECT 1 FROM pragma_table_info('restaurants') WHERE name='actif')"
-	
-	// Si la table restaurants n'existe pas encore (première exécution), QueryRow va renvoyer une erreur silencieuse, c'est normal.
-	_ = db.QueryRow(checkQuery).Scan(&columnExists)
-
-	// Si la colonne existe déjà, on ne réexécute pas le fichier d'altération pour éviter le crash "duplicate column name"
-	if columnExists {
-		return db, nil
+	var version, tables int
+	_ = db.QueryRow("PRAGMA user_version").Scan(&version)
+	_ = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'restaurants'`).Scan(&tables)
+	if tables > 0 && version < schemaVersion {
+		db.Close()
+		return nil, fmt.Errorf(
+			"base de donnees ancienne (version %d, attendue %d) : sauvegardez %s puis supprimez-le pour le recreer",
+			version, schemaVersion, path)
 	}
 
-	// Lecture et application du schéma initial/extensions uniquement si nécessaire
 	schema, err := os.ReadFile(schemaPath)
 	if err != nil {
-		return nil, fmt.Errorf("lecture du schéma: %w", err)
+		db.Close()
+		return nil, fmt.Errorf("lecture du schema: %w", err)
 	}
 	if _, err := db.Exec(string(schema)); err != nil {
-		return nil, fmt.Errorf("application du schéma: %w", err)
+		db.Close()
+		return nil, fmt.Errorf("application du schema: %w", err)
 	}
-	
+	if _, err := db.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("version du schema: %w", err)
+	}
+
 	return db, nil
 }
 
@@ -79,8 +87,9 @@ func seedIfEmpty(db *sql.DB, jsonPath string) error {
 	return nil
 }
 
-// insertEntry insere ou reutilise un restaurant et un plat,
-// puis enregistre le prix correspondant.
+// insertEntry insere ou met a jour un restaurant et un plat,
+// puis enregistre le prix correspondant. L'operation est
+// rejouable : les memes donnees n'creent jamais de doublon.
 func insertEntry(db *sql.DB, e SeedEntry) error {
 	tx, err := db.Begin()
 	if err != nil {
@@ -88,89 +97,44 @@ func insertEntry(db *sql.DB, e SeedEntry) error {
 	}
 	defer tx.Rollback()
 
-	// 1. Rechercher le restaurant existant.
-	// Le nom, le quartier et le type servent ici a reconnaitre
-	// un restaurant lors de l'importation des donnees.
-	var restaurantID int64
-
-	err = tx.QueryRow(`
-		SELECT id
-		FROM restaurants
-		WHERE nom = ? AND quartier = ? AND type = ?
-		ORDER BY id
-		LIMIT 1
-	`, e.Resto, e.Quartier, e.Type).Scan(&restaurantID)
-
+	// 1. Le restaurant est reconnu par son nom et son quartier.
+	slug, err := uniqueSlug(tx, e.Resto, e.Quartier)
 	if err != nil {
-		if err != sql.ErrNoRows {
-			return fmt.Errorf("recherche du restaurant : %w", err)
-		}
-
-		// 2. Si le restaurant n'existe pas, le creer.
-		result, err := tx.Exec(`
-			INSERT INTO restaurants (nom, quartier, type)
-			VALUES (?, ?, ?)
-		`, e.Resto, e.Quartier, e.Type)
-		if err != nil {
-			return fmt.Errorf("creation du restaurant : %w", err)
-		}
-
-		restaurantID, err = result.LastInsertId()
-		if err != nil {
-			return fmt.Errorf("recuperation de l'identifiant du restaurant : %w", err)
-		}
+		return fmt.Errorf("adresse courte du restaurant : %w", err)
+	}
+	var restaurantID string
+	err = tx.QueryRow(`
+		INSERT INTO restaurants (nom, quartier, type, slug)
+		VALUES (?, ?, ?, ?)
+		ON CONFLICT (nom, quartier) DO UPDATE SET type = excluded.type
+		RETURNING id
+	`, e.Resto, e.Quartier, e.Type, slug).Scan(&restaurantID)
+	if err != nil {
+		return fmt.Errorf("enregistrement du restaurant : %w", err)
 	}
 
-	// 3. Rechercher le plat existant.
-	var platID int64
-
+	// 2. Le plat est partage entre les restaurants.
+	var platID string
 	err = tx.QueryRow(`
-		SELECT id
-		FROM plats
-		WHERE nom = ?
+		INSERT INTO plats (nom)
+		VALUES (?)
+		ON CONFLICT (nom) DO UPDATE SET nom = excluded.nom
+		RETURNING id
 	`, e.Plat).Scan(&platID)
-
 	if err != nil {
-		if err != sql.ErrNoRows {
-			return fmt.Errorf("recherche du plat : %w", err)
-		}
-
-		// 4. Creer le plat uniquement s'il n'existe pas.
-		result, err := tx.Exec(`
-			INSERT INTO plats (nom)
-			VALUES (?)
-		`, e.Plat)
-		if err != nil {
-			return fmt.Errorf("creation du plat : %w", err)
-		}
-
-		platID, err = result.LastInsertId()
-		if err != nil {
-			return fmt.Errorf("recuperation de l'identifiant du plat : %w", err)
-		}
+		return fmt.Errorf("enregistrement du plat : %w", err)
 	}
 
-	// 5. Inserer ou mettre a jour le prix.
-	// Le prix peut etre identique a celui d'autres plats
-	// ou d'autres restaurants : aucune unicite sur le montant.
+	// 3. Le prix peut etre identique a celui d'autres plats ou
+	// d'autres restaurants : aucune unicite sur le montant.
 	_, err = tx.Exec(`
-		INSERT INTO prix (
-			restaurant_id,
-			plat_id,
-			prix_fcfa,
-			portion
-		)
+		INSERT INTO prix (restaurant_id, plat_id, prix_fcfa, portion)
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT (restaurant_id, plat_id, portion)
 		DO UPDATE SET
 			prix_fcfa = excluded.prix_fcfa,
 			date_releve = date('now')
-	`,
-		restaurantID,
-		platID,
-		e.Prix,
-		e.Portion,
-	)
+	`, restaurantID, platID, e.Prix, e.Portion)
 	if err != nil {
 		return fmt.Errorf("enregistrement du prix : %w", err)
 	}
