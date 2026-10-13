@@ -1,7 +1,7 @@
 -- ============================================================
 -- EXPRESSFOOD (ex CHEAP DISH MAP) - Schema SQLite principal
 -- ============================================================
--- Version du schema : 3 (voir schemaVersion dans db.go)
+-- Version du schema : 4 (voir schemaVersion dans db.go)
 --
 -- Identifiants : tous les id sont des UUID v4 stockes en TEXT.
 --   Les tables restaurants, plats et prix les generent elles-memes
@@ -164,11 +164,19 @@ CREATE TABLE IF NOT EXISTS commandes (
     frais_resto INTEGER NOT NULL
         CHECK (frais_resto >= 0),
 
+    -- Frais restaurant reellement factures : 0 pendant le lancement gratuit.
+    frais_resto_facture INTEGER NOT NULL DEFAULT 0
+        CHECK (frais_resto_facture >= 0),
+
     frais_livraison INTEGER NOT NULL DEFAULT 0
         CHECK (frais_livraison >= 0),
 
     part_livreur INTEGER NOT NULL DEFAULT 0
         CHECK (part_livreur >= 0),
+
+    -- Ce que le client paie : sous_total + frais_livraison.
+    total_a_payer INTEGER NOT NULL
+        CHECK (total_a_payer >= 0),
 
     code_retrait TEXT NOT NULL,
 
@@ -179,6 +187,7 @@ CREATE TABLE IF NOT EXISTS commandes (
 
     -- Une livraison a toujours une adresse.
     CHECK (mode = 'retrait' OR adresse_livraison IS NOT NULL),
+    CHECK (total_a_payer = sous_total + frais_livraison),
 
     FOREIGN KEY (restaurant_id)
         REFERENCES restaurants(id)

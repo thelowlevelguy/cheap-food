@@ -3,6 +3,9 @@
 
 # Base de données locale (générée automatiquement au démarrage)
 cheapdish.db
+*.db
+*.db-shm
+*.db-wal
 
 # Binaire compilé
 cheapdish

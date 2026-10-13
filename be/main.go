@@ -303,6 +303,7 @@ func handleAjouterPrix(w http.ResponseWriter, r *http.Request) {
 func main() {
 	// Chargement de la clé d'administration depuis l'environnement ou .env
 	loadAdminKey()
+	loadFraisConfig()
 
 	var err error
 	// Connexion et migration intelligente via votre logique db.go mise à jour
@@ -326,6 +327,8 @@ func main() {
 	mux.HandleFunc("GET /plats/{nom}/moins-cher", handleMoinsCher)
 	mux.HandleFunc("GET /restos", handleRestos)
 	mux.HandleFunc("GET /restos/{slug}/menu", handleMenuResto)
+	mux.HandleFunc("POST /commandes", handleCreerCommande)
+	mux.HandleFunc("GET /suivi/{token}", handleSuivi)
 	
 	// Écran d'administration Web (Page publique, soumissions sécurisées)
 	mux.HandleFunc("GET /admin", handleAdminPage)
@@ -333,6 +336,8 @@ func main() {
 	// Routes Sécurisées (Emballées par le middleware de vérification de clé requireAdmin)
 	mux.HandleFunc("POST /prix", requireAdmin(handleAjouterPrix))
 	mux.HandleFunc("POST /admin/restaurants", requireAdmin(handleAdminAjouterResto))
+	mux.HandleFunc("GET /admin/commandes", requireAdmin(handleAdminCommandes))
+	mux.HandleFunc("POST /admin/commandes/{id}/payee", requireAdmin(handleAdminPayee))
 
 	port := os.Getenv("PORT")
 
