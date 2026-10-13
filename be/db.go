@@ -20,7 +20,7 @@ type SeedEntry struct {
 }
 
 // schemaVersion doit correspondre a la version indiquee dans schema.sql.
-const schemaVersion = 4
+const schemaVersion = 5
 
 // openDB ouvre (ou cree) le fichier SQLite et applique le schema.
 // Le schema est rejouable a chaque demarrage. Une base creee avec

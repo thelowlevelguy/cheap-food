@@ -278,9 +278,9 @@ func creerCommande(db *sql.DB, in CommandeInput, now, gratuitJusquau time.Time) 
 	defer tx.Rollback()
 
 	var restoNom, restoSlug string
-	var actif int
-	err = tx.QueryRow(`SELECT nom, slug, actif FROM restaurants WHERE id = ?`, in.RestaurantID).
-		Scan(&restoNom, &restoSlug, &actif)
+	var actif, ouvert int
+	err = tx.QueryRow(`SELECT nom, slug, actif, ouvert FROM restaurants WHERE id = ?`, in.RestaurantID).
+		Scan(&restoNom, &restoSlug, &actif, &ouvert)
 	if err == sql.ErrNoRows {
 		return nil, &erreurSaisie{"restaurant introuvable", http.StatusNotFound}
 	}
@@ -289,6 +289,9 @@ func creerCommande(db *sql.DB, in CommandeInput, now, gratuitJusquau time.Time) 
 	}
 	if actif != 1 {
 		return nil, conflit("ce restaurant ne prend pas encore de commandes")
+	}
+	if ouvert != 1 {
+		return nil, conflit("ce restaurant est fermé pour le moment")
 	}
 
 	sousTotal := 0
@@ -465,6 +468,8 @@ type CommandeAdmin struct {
 	CreeLe            string  `json:"cree_le"`
 	PayeLe            *string `json:"paye_le"`
 	ReferencePaiement *string `json:"reference_paiement"`
+	MotifAnnulation   *string `json:"motif_annulation"`
+	RembourseLe       *string `json:"rembourse_le"`
 }
 
 var statutsCommande = map[string]bool{
@@ -514,7 +519,7 @@ func handleAdminCommandes(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`
 		SELECT c.id, c.statut, r.nom, c.client_nom, c.client_telephone, c.mode, c.sous_total,
 		       c.total_a_payer, c.frais_resto, c.frais_resto_facture, c.cree_le, c.paye_le,
-		       c.reference_paiement
+		       c.reference_paiement, c.motif_annulation, c.rembourse_le
 		FROM commandes c JOIN restaurants r ON r.id = c.restaurant_id
 		WHERE (? = '' OR c.statut = ?)
 		ORDER BY c.cree_le DESC LIMIT 100`, statut, statut)
@@ -527,9 +532,9 @@ func handleAdminCommandes(w http.ResponseWriter, r *http.Request) {
 	out := []CommandeAdmin{}
 	for rows.Next() {
 		var c CommandeAdmin
-		var paye, ref sql.NullString
+		var paye, ref, motif, remb sql.NullString
 		if err := rows.Scan(&c.ID, &c.Statut, &c.Restaurant, &c.ClientNom, &c.ClientTelephone, &c.Mode,
-			&c.SousTotal, &c.TotalAPayer, &c.FraisResto, &c.FraisRestoFacture, &c.CreeLe, &paye, &ref); err != nil {
+			&c.SousTotal, &c.TotalAPayer, &c.FraisResto, &c.FraisRestoFacture, &c.CreeLe, &paye, &ref, &motif, &remb); err != nil {
 			serverError(w, err)
 			return
 		}
@@ -539,6 +544,7 @@ func handleAdminCommandes(w http.ResponseWriter, r *http.Request) {
 		if ref.Valid {
 			c.ReferencePaiement = &ref.String
 		}
+		c.MotifAnnulation, c.RembourseLe = strPtr(motif), strPtr(remb)
 		out = append(out, c)
 	}
 	if err = rows.Err(); err != nil {

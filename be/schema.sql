@@ -1,7 +1,7 @@
 -- ============================================================
 -- EXPRESSFOOD (ex CHEAP DISH MAP) - Schema SQLite principal
 -- ============================================================
--- Version du schema : 4 (voir schemaVersion dans db.go)
+-- Version du schema : 5 (voir schemaVersion dans db.go)
 --
 -- Identifiants : tous les id sont des UUID v4 stockes en TEXT.
 --   Les tables restaurants, plats et prix les generent elles-memes
@@ -34,7 +34,11 @@ CREATE TABLE IF NOT EXISTS restaurants (
     contact TEXT NOT NULL DEFAULT '',
     actif INTEGER NOT NULL DEFAULT 0
         CHECK (actif IN (0, 1)),
+    -- SHA-256 du code d'acces du restaurant (jamais le code lui-meme).
     code_acces_hash TEXT,
+    -- 0 = en pause : le restaurant ne prend plus de nouvelles commandes.
+    ouvert INTEGER NOT NULL DEFAULT 1
+        CHECK (ouvert IN (0, 1)),
     latitude REAL,
     longitude REAL,
     temps_preparation_min INTEGER NOT NULL DEFAULT 15
@@ -43,6 +47,9 @@ CREATE TABLE IF NOT EXISTS restaurants (
     -- Un restaurant est reconnu par son nom et son quartier.
     UNIQUE (nom, quartier)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_restaurants_code
+    ON restaurants (code_acces_hash) WHERE code_acces_hash IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_restaurants_nom
     ON restaurants (nom);
@@ -184,6 +191,13 @@ CREATE TABLE IF NOT EXISTS commandes (
 
     cree_le TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     paye_le TEXT,
+    acceptee_le TEXT,
+    prete_le TEXT,
+    retiree_le TEXT,
+
+    -- Commande annulee par le restaurant : motif, et date du remboursement.
+    motif_annulation TEXT,
+    rembourse_le TEXT,
 
     -- Une livraison a toujours une adresse.
     CHECK (mode = 'retrait' OR adresse_livraison IS NOT NULL),
@@ -203,6 +217,25 @@ CREATE INDEX IF NOT EXISTS idx_commandes_resto_statut
 
 CREATE INDEX IF NOT EXISTS idx_commandes_livreur
     ON commandes (livreur_id);
+
+-- ============================================================
+-- 5 bis. SESSIONS DES RESTAURANTS (tablette connectee)
+-- ============================================================
+
+-- Le jeton n'est stocke que sous forme de hash.
+CREATE TABLE IF NOT EXISTS sessions_restaurant (
+    token_hash TEXT NOT NULL PRIMARY KEY,
+    restaurant_id TEXT NOT NULL,
+    cree_le TEXT NOT NULL,
+    expire_le TEXT NOT NULL,
+
+    FOREIGN KEY (restaurant_id)
+        REFERENCES restaurants(id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_restaurant
+    ON sessions_restaurant (restaurant_id);
 
 -- ============================================================
 -- 6. LIGNES DE COMMANDE

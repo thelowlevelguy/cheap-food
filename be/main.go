@@ -109,7 +109,7 @@ func handleMoinsCher(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`
 		SELECT r.id, r.slug, r.nom, r.quartier, r.type,
 		       pr.id, p.nom, pr.prix_fcfa, pr.portion, pr.date_releve, pr.photo,
-		       r.actif, r.temps_preparation_min
+		       r.actif, r.ouvert, r.temps_preparation_min
 		FROM prix pr
 		JOIN restaurants r ON r.id = pr.restaurant_id
 		JOIN plats p ON p.id = pr.plat_id
@@ -126,15 +126,15 @@ func handleMoinsCher(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var res PrixResult
 		var photo sql.NullString
-		var actif int
+		var actif, ouvert int
 		if err := rows.Scan(&res.RestoID, &res.RestoSlug, &res.Resto, &res.Quartier, &res.Type,
 			&res.PrixID, &res.Plat, &res.PrixFCFA, &res.Portion, &res.DateReleve, &photo,
-			&actif, &res.TempsPreparationMin); err != nil {
+			&actif, &ouvert, &res.TempsPreparationMin); err != nil {
 			serverError(w, err)
 			return
 		}
 		res.Photo = photoPtr(photo)
-		res.Commandable = actif == 1
+		res.Commandable = actif == 1 && ouvert == 1
 		results = append(results, res)
 	}
 
@@ -158,6 +158,7 @@ type RestoResume struct {
 	Nom                 string `json:"nom"`
 	Quartier            string `json:"quartier"`
 	Type                string `json:"type"`
+	Ouvert              bool   `json:"ouvert"`
 	Commandable         bool   `json:"commandable"`
 	TempsPreparationMin int    `json:"temps_preparation_min"`
 }
@@ -165,7 +166,7 @@ type RestoResume struct {
 // GET /restos -> Liste complete des etablissements
 func handleRestos(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.Query(`
-		SELECT id, slug, nom, quartier, type, actif, temps_preparation_min
+		SELECT id, slug, nom, quartier, type, actif, ouvert, temps_preparation_min
 		FROM restaurants
 		ORDER BY nom`)
 	if err != nil {
@@ -177,12 +178,13 @@ func handleRestos(w http.ResponseWriter, r *http.Request) {
 	restos := []RestoResume{}
 	for rows.Next() {
 		var rr RestoResume
-		var actif int
-		if err := rows.Scan(&rr.ID, &rr.Slug, &rr.Nom, &rr.Quartier, &rr.Type, &actif, &rr.TempsPreparationMin); err != nil {
+		var actif, ouvert int
+		if err := rows.Scan(&rr.ID, &rr.Slug, &rr.Nom, &rr.Quartier, &rr.Type, &actif, &ouvert, &rr.TempsPreparationMin); err != nil {
 			serverError(w, err)
 			return
 		}
-		rr.Commandable = actif == 1
+		rr.Ouvert = ouvert == 1
+		rr.Commandable = actif == 1 && ouvert == 1
 		restos = append(restos, rr)
 	}
 
@@ -218,12 +220,12 @@ func handleMenuResto(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSpace(r.PathValue("slug"))
 
 	var m MenuResto
-	var actif int
+	var actif, ouvert int
 	err := db.QueryRow(`
-		SELECT id, slug, nom, quartier, type, actif, temps_preparation_min
+		SELECT id, slug, nom, quartier, type, actif, ouvert, temps_preparation_min
 		FROM restaurants
 		WHERE slug = ?`, slug).
-		Scan(&m.ID, &m.Slug, &m.Nom, &m.Quartier, &m.Type, &actif, &m.TempsPreparationMin)
+		Scan(&m.ID, &m.Slug, &m.Nom, &m.Quartier, &m.Type, &actif, &ouvert, &m.TempsPreparationMin)
 	if err == sql.ErrNoRows {
 		writeError(w, "restaurant introuvable", http.StatusNotFound)
 		return
@@ -232,7 +234,8 @@ func handleMenuResto(w http.ResponseWriter, r *http.Request) {
 		serverError(w, err)
 		return
 	}
-	m.Commandable = actif == 1
+	m.Ouvert = ouvert == 1
+	m.Commandable = actif == 1 && ouvert == 1
 
 	rows, err := db.Query(`
 		SELECT pr.id, p.nom, pr.portion, pr.prix_fcfa, pr.photo, pr.disponible, pr.date_releve
@@ -329,6 +332,16 @@ func main() {
 	mux.HandleFunc("GET /restos/{slug}/menu", handleMenuResto)
 	mux.HandleFunc("POST /commandes", handleCreerCommande)
 	mux.HandleFunc("GET /suivi/{token}", handleSuivi)
+	mux.HandleFunc("POST /pro/connexion", handleProConnexion)
+	mux.HandleFunc("POST /pro/deconnexion", requireResto(handleProDeconnexion))
+	mux.HandleFunc("GET /pro/moi", requireResto(handleProMoi))
+	mux.HandleFunc("POST /pro/ouverture", requireResto(handleProOuverture))
+	mux.HandleFunc("GET /pro/commandes", requireResto(handleProCommandes))
+	mux.HandleFunc("POST /pro/commandes/{id}/accepter", requireResto(handleProAccepter))
+	mux.HandleFunc("POST /pro/commandes/{id}/prete", requireResto(handleProPrete))
+	mux.HandleFunc("POST /pro/commandes/{id}/retiree", requireResto(handleProRetiree))
+	mux.HandleFunc("POST /pro/commandes/{id}/refuser", requireResto(handleProRefuser))
+	mux.HandleFunc("POST /pro/plats/{prix_id}/disponible", requireResto(handleProDisponible))
 	
 	// Écran d'administration Web (Page publique, soumissions sécurisées)
 	mux.HandleFunc("GET /admin", handleAdminPage)
@@ -338,6 +351,8 @@ func main() {
 	mux.HandleFunc("POST /admin/restaurants", requireAdmin(handleAdminAjouterResto))
 	mux.HandleFunc("GET /admin/commandes", requireAdmin(handleAdminCommandes))
 	mux.HandleFunc("POST /admin/commandes/{id}/payee", requireAdmin(handleAdminPayee))
+	mux.HandleFunc("POST /admin/commandes/{id}/remboursee", requireAdmin(handleAdminRemboursee))
+	mux.HandleFunc("POST /admin/restaurants/{id}/code", requireAdmin(handleAdminCodeResto))
 
 	port := os.Getenv("PORT")
 
