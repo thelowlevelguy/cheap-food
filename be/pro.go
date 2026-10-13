@@ -307,7 +307,7 @@ func commandesPro(db *sql.DB, restaurantID string, statuts []string) ([]Commande
 
 	for i := range out {
 		lr, err := db.Query(`SELECT nom_plat, quantite, prix_unitaire FROM lignes_commande WHERE commande_id = ? ORDER BY nom_plat`, out[i].ID)
-		if err != nil {
+		if err != nil && lr.Err() != nil{
 			return nil, err
 		}
 		out[i].Lignes = []LigneVue{}
